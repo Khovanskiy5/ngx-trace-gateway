@@ -1,0 +1,57 @@
+# ------------------------------
+# Project: ngx-trace-gateway
+# Purpose: Ignore IDE/system files, runtime logs, caches, temp and secrets
+# ------------------------------
+
+# OS/filesystem
+.DS_Store
+Thumbs.db
+
+# IDE & editors
+.idea/
+.vscode/
+*.iml
+*.code-workspace
+*.swp
+*.swo
+*.swx
+*~
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# Docker & environment
+.env
+.env.*
+docker-compose.override.yml
+.docker/
+
+# Logs (generic and rotated)
+*.log
+*.log.*
+*.gz
+
+# OpenResty/Nginx runtime paths (mounted/ephemeral)
+rootfs/var/log/
+rootfs/var/cache/
+rootfs/var/run/
+rootfs/var/tmp/
+rootfs/tmp/
+tmp/
+
+# Certificates & keys (do not commit secrets)
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+*.der
+*.csr
+*.srl
+
+# Build/output (generic, in case added later)
+dist/
+build/
+coverage/

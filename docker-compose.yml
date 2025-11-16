@@ -1,0 +1,24 @@
+services:
+  openresty:
+    image: openresty/openresty:latest
+    container_name: openresty
+    platform: linux/amd64
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    volumes:
+      - ./rootfs/usr/local/openresty/nginx/conf/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./rootfs/usr/local/openresty/nginx/html:/usr/local/openresty/nginx/html:ro
+      - ./rootfs/var/www/errors/public:/var/www/errors/public:ro
+      - ./rootfs/var/log/nginx:/var/log/nginx
+      - ./rootfs/var/cache/nginx:/var/cache/nginx
+      - ./rootfs/etc/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./rootfs/etc/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - ./rootfs/etc/nginx/sites-available:/etc/nginx/sites-available
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
