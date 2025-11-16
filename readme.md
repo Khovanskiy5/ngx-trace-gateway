@@ -143,29 +143,12 @@ server accepts handled requests
 Reading: 0 Writing: 1 Waiting: 0 
 ```
 
-3) Проверьте экспортер Prometheus на хосте:
-
-```bash
-curl -s http://localhost:9113/metrics | head -50
-```
-
-Интеграция с Prometheus:
-
-Добавьте job в конфиг Prometheus, указывая адрес экспортера (хост:9113):
-
-```yaml
-scrape_configs:
-  - job_name: openresty
-    static_configs:
-      - targets: ["localhost:9113"]
-```
 
 Где что лежит и как отключить/изменить:
 
 - Конфиг метрик: `rootfs/etc/nginx/conf.d/globals/global_metrics.conf`.
   - Меняет сервер/порт и сетевые ACL для `/nginx_status`.
 - Подключение конфига: `rootfs/etc/nginx/conf.d/http.conf` (include `global_metrics.conf`).
-- Контейнер экспортера: `docker-compose.yml` (service `nginx-prometheus-exporter`).
 
 Безопасность:
 
