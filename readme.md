@@ -17,6 +17,7 @@
 - HTTPS и сертификаты
 - Проверка конфигурации и управление
 - Траблшутинг (FAQ)
+ - Метрики и мониторинг (stub_status, Prometheus)
 
 
 ## Быстрый старт
@@ -109,6 +110,68 @@ docker-compose down
 - global_fastcgi.conf, global_uwsgi.conf, global_scgi.conf — аналогичные политики и проброс трассирующих идентификаторов для соответствующих протоколов.
 - global_rate_limit.conf — подготовленные зоны limit_req_zone; подключайте `limit_req` точечно в server/location.
 - global_hop_name.conf — определение `$hop_physical` (физическое имя узла) и `$hop_name` (логическое имя роли). Источники: карта hostname → hop_physical.
+
+## Метрики и мониторинг (stub_status, Prometheus)
+
+В сборку добавлен встроенный endpoint метрик Nginx по stub_status и контейнер экспортера для Prometheus.
+
+Что сделано:
+
+- Включён модульный конфиг `globals/global_metrics.conf`, который поднимает служебный server на 8080 порту внутри контейнера и публикует `GET /nginx_status` (директива `stub_status`). Доступ ограничен локальным хостом и приватными сетями (10/8, 172.16/12, 192.168/16). Порт 8080 наружу не пробрасывается.
+- Добавлен контейнер `nginx-prometheus-exporter`, который снимает метрики с `http://openresty:8080/nginx_status` и отдаёт их в формате Prometheus на порту `9113` (экспортируется на хост).
+
+Как проверить локально:
+
+1) Поднимите окружение:
+
+```bash
+docker-compose up -d
+```
+
+2) Убедитесь, что stub_status отвечает внутри контейнера:
+
+```bash
+docker exec -it openresty curl -s http://127.0.0.1:8080/nginx_status
+```
+
+Ожидаемый ответ (пример):
+
+```
+Active connections: 1 
+server accepts handled requests
+ 3 3 3 
+Reading: 0 Writing: 1 Waiting: 0 
+```
+
+3) Проверьте экспортер Prometheus на хосте:
+
+```bash
+curl -s http://localhost:9113/metrics | head -50
+```
+
+Интеграция с Prometheus:
+
+Добавьте job в конфиг Prometheus, указывая адрес экспортера (хост:9113):
+
+```yaml
+scrape_configs:
+  - job_name: openresty
+    static_configs:
+      - targets: ["localhost:9113"]
+```
+
+Где что лежит и как отключить/изменить:
+
+- Конфиг метрик: `rootfs/etc/nginx/conf.d/globals/global_metrics.conf`.
+  - Меняет сервер/порт и сетевые ACL для `/nginx_status`.
+- Подключение конфига: `rootfs/etc/nginx/conf.d/http.conf` (include `global_metrics.conf`).
+- Контейнер экспортера: `docker-compose.yml` (service `nginx-prometheus-exporter`).
+
+Безопасность:
+
+- Endpoint `/nginx_status` не доступен снаружи хоста, так как 8080 не мапится в compose.
+- Дополнительно доступ ограничен `allow/deny` только для localhost и приватных сетей Docker/интранета.
+- Если нужно опубликовать метрики напрямую (не рекомендуется), пробросьте порт 8080 и явно зажмите ACL по IP/Firewall.
 - global_trace.conf — формирование `$trace_request_id`, `$local_request_id`, `$prev_request_id`, `$request_hops_chain`, `$mobile_launch_id`, `$mobile_request_id`.
 - global_logging.conf — формат JSON‑логов `structured_log` со множеством полезных полей для корреляции.
 - global_cache.conf — общая зона proxy_cache + open_file_cache.
