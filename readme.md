@@ -17,7 +17,7 @@
 - HTTPS и сертификаты
 - Проверка конфигурации и управление
 - Траблшутинг (FAQ)
- - Метрики и мониторинг (stub_status, Prometheus)
+ - Метрики и мониторинг (stub_status)
 
 
 ## Быстрый старт
@@ -111,14 +111,13 @@ docker-compose down
 - global_rate_limit.conf — подготовленные зоны limit_req_zone; подключайте `limit_req` точечно в server/location.
 - global_hop_name.conf — определение `$hop_physical` (физическое имя узла) и `$hop_name` (логическое имя роли). Источники: карта hostname → hop_physical.
 
-## Метрики и мониторинг (stub_status, Prometheus)
+## Метрики и мониторинг (stub_status,)
 
-В сборку добавлен встроенный endpoint метрик Nginx по stub_status и контейнер экспортера для Prometheus.
+В сборку добавлен встроенный endpoint метрик Nginx по stub_status.
 
 Что сделано:
 
 - Включён модульный конфиг `globals/global_metrics.conf`, который поднимает служебный server на 8080 порту внутри контейнера и публикует `GET /nginx_status` (директива `stub_status`). Доступ ограничен локальным хостом и приватными сетями (10/8, 172.16/12, 192.168/16). Порт 8080 наружу не пробрасывается.
-- Добавлен контейнер `nginx-prometheus-exporter`, который снимает метрики с `http://openresty:8080/nginx_status` и отдаёт их в формате Prometheus на порту `9113` (экспортируется на хост).
 
 Как проверить локально:
 
