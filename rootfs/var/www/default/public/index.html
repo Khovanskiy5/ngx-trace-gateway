@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ngx-trace-gateway</title>
+    <link rel="stylesheet" href="/assets/site.css">
+    <script type="module" src="/assets/app.mjs"></script>
+</head>
+<body>
+<main class="card">
+    <h1>ngx-trace-gateway работает</h1>
+    <p>Это демо-страница эталонной конфигурации nginx / OpenResty / Angie со сквозной трассировкой запросов.</p>
+    <p class="muted">ID запроса к этой странице: <code data-request-id>…</code></p>
+
+    <h2>Что проверить</h2>
+    <ul>
+        <li>Заголовки ответа: <code>curl -I http://localhost/</code> — <code>X-Request-ID</code> и заголовки безопасности. <code>X-HOP-Name</code> и <code>X-Request-Chain</code> по умолчанию видны только клиентам с loopback-адреса (внутренняя топология).</li>
+        <li>Проксирование в бэкенд: <code>curl http://localhost/api/demo</code> — бэкенд покажет, какие заголовки трассировки он получил, включая цепочку <code>X-Request-Chain</code>.</li>
+        <li>Свой trace ID: <code>curl -I -H "X-Request-ID: 0123456789abcdef0123456789abcdef" http://localhost/</code></li>
+        <li>JSON-лог: <code>docker compose logs -f gateway</code></li>
+    </ul>
+
+    <p class="muted">Замените содержимое <code>rootfs/var/www/default/public/</code> своим сайтом, а бэкенд — в <code>sites-available/default/upstream.conf</code>.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,115 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"   # еженедельно: ловим изменения в образах
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Config lint
+        run: scripts/lint.sh
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
+
+  docs-links:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      # Только локальные ссылки и якоря (--offline): внешние сайты не делают CI нестабильным.
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments --no-progress './**/*.md'
+          fail: true
+
+  smoke:
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "openresty/openresty:1.31.1.1-bookworm", bin: openresty }
+          - { image: "openresty/openresty:1.31.1.1-alpine",   bin: openresty }
+          - { image: "nginx:1.30.5",                          bin: nginx }
+          - { image: "nginx:1.31.6",                          bin: nginx }
+          - { image: "docker.angie.software/angie:1.12.2",    bin: angie }
+    name: smoke (${{ matrix.image }})
+    steps:
+      - uses: actions/checkout@v7
+      # Анонимные pull с Docker Hub ограничены; при наличии учётных данных — логин.
+      - name: Docker Hub login
+        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Smoke tests
+        env:
+          NGX_IMAGE: ${{ matrix.image }}
+          NGX_BIN: ${{ matrix.bin }}
+          LOG_FILE: ${{ runner.temp }}/gateway.log
+        run: scripts/test.sh
+      - name: Upload gateway log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gateway-log-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/gateway.log
+          if-no-files-found: ignore
+
+  nonroot:
+    needs: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Non-root profile starts and serves
+        env:
+          HTTP_PORT: "28080"
+          HTTPS_PORT: "28443"
+        run: |
+          docker compose -f compose.yaml -f compose.nonroot.yaml up -d --wait --wait-timeout 120
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:28080/)" = 200
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:28080/api/demo)" = 200
+          docker compose -f compose.yaml -f compose.nonroot.yaml exec -T gateway grep -q '^Uid:\s*65534' /proc/1/status
+      - name: Tear down
+        if: always()
+        run: docker compose -f compose.yaml -f compose.nonroot.yaml down -v
+
+  optional-modules:
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "nginx:1.30.5-otel",                  bin: nginx, module: /usr/lib/nginx/modules/ngx_otel_module.so }
+          - { image: "docker.angie.software/angie:1.12.2", bin: angie, module: /usr/lib/angie/modules/ngx_otel_module.so }
+    name: otel (${{ matrix.image }})
+    steps:
+      - uses: actions/checkout@v7
+      - name: Enable OpenTelemetry on a copy and run -t
+        run: |
+          work=$(mktemp -d)
+          cp -R rootfs "$work/"
+          printf 'load_module %s;\n' "${{ matrix.module }}" > "$work/rootfs/etc/nginx/modules-enabled/otel.conf"
+          sed -i 's|^    # include /etc/nginx/snippets/otel.conf;|    include /etc/nginx/snippets/otel.conf;|' "$work/rootfs/etc/nginx/main.d/http.conf"
+          grep -q '^    include /etc/nginx/snippets/otel.conf;' "$work/rootfs/etc/nginx/main.d/http.conf"
+          docker run --rm --read-only --tmpfs /var/cache/nginx --tmpfs /run \
+            -v "$work/rootfs/etc/nginx:/etc/nginx:ro" -v "$work/rootfs/var/www:/var/www:ro" \
+            --entrypoint "${{ matrix.bin }}" "${{ matrix.image }}" \
+            -c /etc/nginx/nginx.conf -t -g 'worker_processes 1; pid /run/nginx.pid;'

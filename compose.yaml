@@ -1,0 +1,104 @@
+# ngx-trace-gateway — эталонный шлюз на nginx / OpenResty / Angie.
+#
+# Быстрый старт:  docker compose up -d --wait   →   curl -i http://localhost/
+# Дистрибутив, порты и имя узла задаются в .env (см. .env.example).
+
+name: ngx-trace-gateway
+
+x-logging: &default-logging
+  # Логи nginx идут в stdout/stderr; json-file с ротацией не даст им
+  # заполнить диск. Сборщики (Promtail, Vector, Fluent Bit) читают эти файлы.
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  gateway:
+    # Точный тег (multi-arch: amd64 и arm64). Другие дистрибутивы — в .env.example.
+    # В продакшене закрепляйте и дайджест: образ:тег@sha256:… — тег может быть
+    # пересобран. Обновления тегов предлагает Renovate (renovate.json).
+    image: ${NGX_IMAGE:-openresty/openresty:1.31.1.1-bookworm}
+    # Один и тот же конфиг для всех образов: главный файл — /etc/nginx/nginx.conf.
+    # worker_processes и pid передаются здесь, а не в nginx.conf (см. комментарий там).
+    command:
+      - ${NGX_BIN:-openresty}
+      - -c
+      - /etc/nginx/nginx.conf
+      - -g
+      - "daemon off; worker_processes ${NGX_WORKER_PROCESSES:-auto}; pid ${NGX_PID:-/run/nginx.pid};"
+    # $hostname → X-HOP-Name и элемент цепочки X-Request-Chain.
+    hostname: ${HOP_NAME:-edge-gateway}
+    ports:
+      # По умолчанию только localhost. Для доступа извне: BIND_ADDR=0.0.0.0.
+      - "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-80}:80"
+      - "${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443"
+      # HTTP/3 (snippets/http3.conf):
+      # - "${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443/udp"
+      # Порт 8080 (здоровье и метрики, sites-available/status.conf) НЕ
+      # публикуется: он слушает только 127.0.0.1 внутри контейнера.
+    volumes:
+      # Каталоги, а не отдельные файлы: правки с атомарным сохранением
+      # (IDE, vim, sed -i) сразу видны в контейнере.
+      - ${ROOTFS:-./rootfs}/etc/nginx:/etc/nginx:ro
+      - ${ROOTFS:-./rootfs}/var/www:/var/www:ro
+      # Временные файлы и proxy_cache. Отдельный том на каждый дистрибутив:
+      # воркеры у них работают от разных пользователей (nginx, nobody, angie),
+      # и файлы кэша, созданные одним образом, другой прочитать не сможет.
+      - cache-${NGX_BIN:-openresty}:/var/cache/nginx
+    tmpfs:
+      - /run:size=8m          # pid-файл
+    # --- Hardening -------------------------------------------------------
+    read_only: true
+    cap_drop: [ALL]
+    # Мастер-процесс работает от root: создаёт каталоги временных файлов,
+    # меняет их владельца и понижает привилегии воркеров.
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65535           # = worker_rlimit_nofile в nginx.conf
+        hard: 65535
+    # --- Мягкая остановка --------------------------------------------------
+    # SIGQUIT — graceful shutdown (у образа Angie STOPSIGNAL не задан, и без
+    # этой строки Docker прислал бы SIGTERM — быструю остановку с обрывом
+    # запросов). Время больше worker_shutdown_timeout (25 с) в nginx.conf.
+    stop_signal: SIGQUIT
+    stop_grace_period: 30s
+    healthcheck:
+      # В разных образах разные утилиты: curl (nginx, Angie), wget (Alpine),
+      # только bash (OpenResty на Debian). Пробуем по очереди.
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS -o /dev/null http://127.0.0.1:8080/healthz 2>/dev/null
+          || wget -q -O /dev/null http://127.0.0.1:8080/healthz 2>/dev/null
+          || bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /healthz HTTP/1.0\r\n\r\n" >&3 && head -n1 <&3 | grep -q " 200 "'
+          || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      - backend
+    logging: *default-logging
+    restart: unless-stopped
+
+  # Демо-бэкенд: возвращает всё, что получил, — удобно смотреть, какие
+  # заголовки трассировки пришли от шлюза (curl http://localhost/api/demo).
+  # Замените на своё приложение и поправьте sites-available/default/upstream.conf.
+  backend:
+    image: ${BACKEND_IMAGE:-traefik/whoami:v1.11.0}
+    command: ["--port", "8080"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    restart: unless-stopped
+
+volumes:
+  cache-openresty: {}
+  cache-nginx: {}
+  cache-angie: {}

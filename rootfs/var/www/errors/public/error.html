@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Ошибка <!--# echo var="status" default="" --> — <!--# echo var="error_title" default="Ошибка" --></title>
+    <style>
+        :root { --bg:#f6f7f9; --card:#fff; --text:#1f2328; --muted:#59636e; --accent:#cf222e; --code-bg:#eff2f5; }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg:#0d1117; --card:#161b22; --text:#e6edf3; --muted:#9198a1; --accent:#ff7b72; --code-bg:#262c36; }
+        }
+        html, body { margin:0; padding:0; min-height:100%; }
+        body { background:var(--bg); color:var(--text); font:16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+               display:flex; align-items:center; justify-content:center; min-height:100vh; }
+        .card { box-sizing:border-box; width:100%; max-width:720px; margin:16px; padding:32px 40px; background:var(--card);
+                border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,.06); }
+        .code { margin:0; color:var(--accent); font-size:56px; font-weight:700; line-height:1; }
+        h1 { margin:12px 0 8px; font-size:26px; }
+        p { margin:0 0 8px; }
+        a { color:inherit; }
+        .muted { color:var(--muted); font-size:14px; }
+        code { background:var(--code-bg); padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+        @media (max-width:600px) { .card { padding:20px; } .code { font-size:44px; } }
+    </style>
+</head>
+<body>
+<main class="card">
+    <p class="code"><!--# echo var="status" default="" --></p>
+    <h1><!--# echo var="error_title" default="Ошибка" --></h1>
+    <p><!--# echo var="error_description" default="" --></p>
+    <p>Вернуться на <a href="/">главную страницу</a>.</p>
+    <p class="muted">Если обращаетесь в поддержку, укажите ID запроса: <code><!--# echo var="trace_request_id" default="—" --></code></p>
+</main>
+</body>
+</html>

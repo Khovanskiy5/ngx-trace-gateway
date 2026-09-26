@@ -1,0 +1,23 @@
+# Строгий профиль: весь nginx (включая мастер-процесс) работает без root
+# и без каких-либо capabilities.
+#
+#   docker compose -f compose.yaml -f compose.nonroot.yaml up -d --wait
+#
+# Отличия от основного профиля:
+#   - user 65534 (nobody); cap_add сброшен — capabilities не нужны вовсе;
+#   - временные файлы и кэш — tmpfs, доступный пользователю 65534
+#     (на именованный том пользователь без root писать не может);
+#   - порты 80/443 внутри контейнера разрешены без NET_BIND_SERVICE, потому что
+#     Docker выставляет net.ipv4.ip_unprivileged_port_start=0. В других средах
+#     (Podman, Kubernetes) слушайте порты выше 1024;
+#   - ключ TLS-сертификата должен быть читаем для uid 65534.
+services:
+  gateway:
+    user: "65534:65534"
+    cap_add: !reset []
+    volumes: !override
+      - ${ROOTFS:-./rootfs}/etc/nginx:/etc/nginx:ro
+      - ${ROOTFS:-./rootfs}/var/www:/var/www:ro
+    tmpfs: !override
+      - /run:size=8m,mode=1777
+      - /var/cache/nginx:size=1100m,mode=0700,uid=65534,gid=65534

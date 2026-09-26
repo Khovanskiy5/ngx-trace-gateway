@@ -1,6 +1,6 @@
 # ------------------------------
 # Project: ngx-trace-gateway
-# Purpose: Ignore IDE/system files, runtime logs, caches, temp and secrets
+# IDE/системные файлы, локальные настройки, секреты и runtime-файлы
 # ------------------------------
 
 # OS/filesystem
@@ -21,26 +21,26 @@ Thumbs.db
 *.orig
 *.rej
 
-# Docker & environment
+# Docker & environment (шаблон .env.example коммитится)
 .env
 .env.*
+!.env.example
+compose.override.yaml
+compose.override.yml
 docker-compose.override.yml
-.docker/
+docker-compose.override.yaml
 
-# Logs (generic and rotated)
+# Логи (включая ротированные). *.gz целиком не игнорируем: gzip_static
+# использует заранее сжатые ассеты рядом с оригиналами.
 *.log
 *.log.*
-*.gz
 
-# OpenResty/Nginx runtime paths (mounted/ephemeral)
-rootfs/var/log/
-rootfs/var/cache/
-rootfs/var/run/
-rootfs/var/tmp/
-rootfs/tmp/
-tmp/
+# Runtime-состояние
+rootfs/var/www/maintenance/on
+rootfs/var/www/acme/.well-known/acme-challenge/*
+!rootfs/var/www/acme/.well-known/acme-challenge/.gitkeep
 
-# Certificates & keys (do not commit secrets)
+# Сертификаты и ключи (секреты не коммитим; dev-сертификат — `make certs`)
 *.key
 *.pem
 *.crt
@@ -51,7 +51,7 @@ tmp/
 *.csr
 *.srl
 
-# Build/output (generic, in case added later)
+# Build/output
 dist/
 build/
 coverage/
