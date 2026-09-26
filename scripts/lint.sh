@@ -143,7 +143,7 @@ if ! text_files=$(git ls-files --cached --others --exclude-standard -- \
         -o -name Makefile \) -print)
 fi
 while IFS= read -r file; do
-    [ -n "$file" ] && [ -f "$file" ] || continue
+    if [ -z "$file" ] || [ ! -f "$file" ]; then continue; fi
     if [ -s "$file" ] && [ "$(tail -c1 "$file" | od -An -c | tr -d ' ')" != '\n' ]; then
         problem "$file: нет перевода строки в конце файла"
     fi
