@@ -380,7 +380,7 @@ CONF
     check "ACME served over HTTP"          test "$(curl -sS "$BASE/.well-known/acme-challenge/token123")" = acme-ok
     check "TLS 1.1 rejected"               bash -c "! curl -sS -o /dev/null --cacert '$CA' --tls-max 1.1 '$TLS_BASE/' 2>/dev/null"
     check "unknown SNI rejected"           bash -c "! curl -sS -o /dev/null -k --resolve evil.example:${HTTPS_PORT}:127.0.0.1 'https://evil.example:${HTTPS_PORT}/' 2>/dev/null"
-    check "TLS log fields"                 bash -c "docker compose logs --no-color --no-log-prefix gateway 2>&1 | grep '^{' | grep -q '\"protocol\":\"TLSv1.3\"'"
+    check "TLS log fields"                 bash -c "docker compose logs --no-color --no-log-prefix gateway 2>&1 | grep -q '^{.*\"protocol\":\"TLSv1.3\"'"
 
     touch "$WORKDIR/rootfs/var/www/maintenance/on"; sleep 1
     check "maintenance → 503"              test "$(code --cacert "$CA" "$TLS_BASE/")" = 503
